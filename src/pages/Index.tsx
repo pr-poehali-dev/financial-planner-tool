@@ -53,6 +53,7 @@ const Index = () => {
   const [periodFilter, setPeriodFilter] = useState<'day' | 'week' | 'month'>('month');
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false);
+  const [transactionType, setTransactionType] = useState<'income' | 'expense'>('expense');
 
   useEffect(() => {
     const savedUserId = getUserIdFromCookie();
@@ -146,7 +147,7 @@ const Index = () => {
 
     const formData = new FormData(e.currentTarget);
     const transactionData = {
-      type: formData.get('type') as 'income' | 'expense',
+      type: transactionType,
       amount: Number(formData.get('amount')),
       category: formData.get('category') as string,
       date: formData.get('date') as string,
@@ -372,7 +373,10 @@ const Index = () => {
             <p className="text-gray-600">Управляйте своими финансами эффективно</p>
           </div>
           <div className="flex gap-2">
-            <Dialog open={isAddTransactionOpen} onOpenChange={setIsAddTransactionOpen}>
+            <Dialog open={isAddTransactionOpen} onOpenChange={(open) => {
+              setIsAddTransactionOpen(open);
+              if (open) setTransactionType('expense');
+            }}>
               <DialogTrigger asChild>
                 <Button className="bg-primary hover:bg-primary/90">
                   <Icon name="Plus" size={18} className="mr-2" />
@@ -387,7 +391,7 @@ const Index = () => {
                 <form onSubmit={handleAddTransaction} className="space-y-4">
                   <div>
                     <Label htmlFor="type">Тип</Label>
-                    <Select name="type" defaultValue="expense" required>
+                    <Select value={transactionType} onValueChange={(value) => setTransactionType(value as 'income' | 'expense')}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -399,7 +403,7 @@ const Index = () => {
                   </div>
                   <div>
                     <Label htmlFor="amount">Сумма</Label>
-                    <Input type="number" name="amount" placeholder="0" required />
+                    <Input type="number" name="amount" placeholder="0" step="0.01" required />
                   </div>
                   <div>
                     <Label htmlFor="category">Категория</Label>
