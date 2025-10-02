@@ -338,7 +338,7 @@ const Index = () => {
               </div>
             </div>
             <TelegramAuth 
-              botUsername="your_bot_username" 
+              botUsername="finansbotsautorbot" 
               onAuth={handleTelegramAuth}
             />
             <p className="text-xs text-center text-gray-500">
