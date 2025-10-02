@@ -72,7 +72,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 ORDER BY created_at DESC
             ''')
             
-            users = [dict(row) for row in cursor.fetchall()]
+            users = []
+            for row in cursor.fetchall():
+                user = dict(row)
+                if 'created_at' in user and user['created_at']:
+                    user['created_at'] = user['created_at'].isoformat()
+                users.append(user)
             
             return {
                 'statusCode': 200,
@@ -88,16 +93,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             email = f"user_{secrets.token_hex(4)}@financeplanner.local"
             password = generate_password()
+            username = email.split('@')[0]
+            
+            print(f"Creating user: email={email}, first_name={first_name}, last_name={last_name}, username={username}")
             
             cursor.execute('''
-                INSERT INTO users (email, password_hash, first_name, last_name, username)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO users (email, password_hash, first_name, last_name, username, created_at)
+                VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 RETURNING id, email, first_name, last_name, created_at
-            ''', (email, hash_password(password), first_name, last_name, email.split('@')[0]))
+            ''', (email, hash_password(password), first_name, last_name, username))
             
-            user = dict(cursor.fetchone())
+            user_row = cursor.fetchone()
+            if not user_row:
+                raise Exception("Failed to create user")
+            
+            user = dict(user_row)
+            if 'created_at' in user and user['created_at']:
+                user['created_at'] = user['created_at'].isoformat()
             user['password'] = password
             conn.commit()
+            
+            print(f"User created successfully: {user}")
             
             return {
                 'statusCode': 201,

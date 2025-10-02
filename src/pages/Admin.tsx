@@ -118,8 +118,9 @@ const Admin = () => {
 
     try {
       const result = await createAdminUser(adminId, firstName, lastName);
+      console.log('Create user result:', result);
 
-      if (result.success) {
+      if (result.success && result.user) {
         setUsers([result.user, ...users]);
         setNewUserData({
           email: result.user.email,
@@ -130,8 +131,15 @@ const Admin = () => {
           title: 'Пользователь создан',
           description: 'Сохраните логин и пароль!'
         });
+      } else {
+        toast({
+          title: 'Ошибка',
+          description: result.error || 'Не удалось создать пользователя',
+          variant: 'destructive'
+        });
       }
     } catch (error) {
+      console.error('Error creating user:', error);
       toast({
         title: 'Ошибка',
         description: 'Не удалось создать пользователя',
