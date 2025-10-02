@@ -1,6 +1,7 @@
 {
+  "admin-users": "https://functions.poehali.dev/9171aa5e-d691-45c5-8a70-2609e1958a25",
+  "admin-auth": "https://functions.poehali.dev/ef619075-2d86-406e-a4a5-455a549df93d",
   "transactions": "https://functions.poehali.dev/f588f968-6596-43f6-af72-b68bed862af0",
   "goals": "https://functions.poehali.dev/091e051e-e26b-44b6-9573-1f56eb20f154",
-  "auth": "https://functions.poehali.dev/a6588cfe-02ca-4f0b-a39b-e9e67abb99ac",
-  "user": "https://functions.poehali.dev/87af9df4-1611-4f43-8b8d-6409d1868f0b"
+  "auth": "https://functions.poehali.dev/a6588cfe-02ca-4f0b-a39b-e9e67abb99ac"
 }

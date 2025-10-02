@@ -1,6 +1,7 @@
 const API_URLS = {
   auth: 'https://functions.poehali.dev/a6588cfe-02ca-4f0b-a39b-e9e67abb99ac',
-  user: 'https://functions.poehali.dev/87af9df4-1611-4f43-8b8d-6409d1868f0b',
+  adminAuth: 'https://functions.poehali.dev/ef619075-2d86-406e-a4a5-455a549df93d',
+  adminUsers: 'https://functions.poehali.dev/9171aa5e-d691-45c5-8a70-2609e1958a25',
   transactions: 'https://functions.poehali.dev/f588f968-6596-43f6-af72-b68bed862af0',
   goals: 'https://functions.poehali.dev/091e051e-e26b-44b6-9573-1f56eb20f154',
 };
@@ -11,28 +12,70 @@ export const getUserIdFromCookie = (): string | null => {
   return userIdCookie ? userIdCookie.split('=')[1] : null;
 };
 
+export const getAdminIdFromCookie = (): string | null => {
+  const cookies = document.cookie.split(';');
+  const adminIdCookie = cookies.find(c => c.trim().startsWith('adminId='));
+  return adminIdCookie ? adminIdCookie.split('=')[1] : null;
+};
+
 export const setUserIdCookie = (userId: string) => {
   document.cookie = `userId=${userId}; path=/; max-age=31536000; SameSite=Strict`;
+};
+
+export const setAdminIdCookie = (adminId: string) => {
+  document.cookie = `adminId=${adminId}; path=/; max-age=31536000; SameSite=Strict`;
 };
 
 export const clearUserIdCookie = () => {
   document.cookie = 'userId=; path=/; max-age=0';
 };
 
-export const authenticateWithTelegram = async (authData: any) => {
+export const clearAdminIdCookie = () => {
+  document.cookie = 'adminId=; path=/; max-age=0';
+};
+
+export const loginUser = async (email: string, password: string) => {
   const response = await fetch(API_URLS.auth, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ authData }),
+    body: JSON.stringify({ email, password }),
   });
   return response.json();
 };
 
-export const createOrUpdateUser = async (userData: any) => {
-  const response = await fetch(API_URLS.user, {
+export const loginAdmin = async (email: string, password: string) => {
+  const response = await fetch(API_URLS.adminAuth, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData),
+    body: JSON.stringify({ email, password }),
+  });
+  return response.json();
+};
+
+export const getAdminUsers = async (adminId: string) => {
+  const response = await fetch(API_URLS.adminUsers, {
+    method: 'GET',
+    headers: { 'X-Admin-Id': adminId },
+  });
+  return response.json();
+};
+
+export const createAdminUser = async (adminId: string, firstName: string, lastName: string) => {
+  const response = await fetch(API_URLS.adminUsers, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Id': adminId,
+    },
+    body: JSON.stringify({ first_name: firstName, last_name: lastName }),
+  });
+  return response.json();
+};
+
+export const deleteAdminUser = async (adminId: string, userId: string) => {
+  const response = await fetch(`${API_URLS.adminUsers}?id=${userId}`, {
+    method: 'DELETE',
+    headers: { 'X-Admin-Id': adminId },
   });
   return response.json();
 };

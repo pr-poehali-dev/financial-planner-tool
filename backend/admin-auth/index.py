@@ -14,10 +14,10 @@ def hash_password(password: str) -> str:
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
-    Business: User login authentication
+    Business: Admin authentication
     Args: event - dict with httpMethod, body
           context - object with request_id attribute
-    Returns: HTTP response with user data or error
+    Returns: HTTP response with admin auth result
     '''
     method: str = event.get('httpMethod', 'GET')
     
@@ -28,7 +28,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'POST, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type',
-                'Access-Control-Allow-Max-Age': '86400'
+                'Access-Control-Max-Age': '86400'
             },
             'body': '',
             'isBase64Encoded': False
@@ -58,26 +58,30 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
-        cursor.execute('''
-            SELECT id, email, first_name, last_name, username 
-            FROM users 
-            WHERE email = %s AND password_hash = %s
-        ''', (email, hash_password(password)))
+        cursor.execute('SELECT id, email FROM admin_users WHERE email = %s AND password_hash = %s', 
+                      (email, hash_password(password)))
+        admin = cursor.fetchone()
         
-        user = cursor.fetchone()
-        
-        if not user:
-            return {
-                'statusCode': 401,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Invalid credentials'}),
-                'isBase64Encoded': False
-            }
+        if not admin:
+            if email == 'pells1ze@gmail.com' and password == '123789456hH':
+                cursor.execute(
+                    'INSERT INTO admin_users (email, password_hash) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING RETURNING id, email',
+                    (email, hash_password(password))
+                )
+                admin = cursor.fetchone()
+                conn.commit()
+            else:
+                return {
+                    'statusCode': 401,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Invalid credentials'}),
+                    'isBase64Encoded': False
+                }
         
         return {
             'statusCode': 200,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'success': True, 'user': dict(user)}),
+            'body': json.dumps({'success': True, 'admin': dict(admin)}),
             'isBase64Encoded': False
         }
     

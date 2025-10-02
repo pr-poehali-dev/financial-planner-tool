@@ -10,10 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
 import { ChartContainer } from '@/components/ui/chart';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import TelegramAuth from '@/components/TelegramAuth';
 import { 
-  authenticateWithTelegram, 
-  createOrUpdateUser,
+  loginUser,
   getTransactions,
   createTransaction,
   deleteTransaction as apiDeleteTransaction,
@@ -93,29 +91,17 @@ const Index = () => {
     }
   };
 
-  const handleTelegramAuth = async (telegramUser: any) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
     try {
-      const authResult = await authenticateWithTelegram(telegramUser);
+      const result = await loginUser(email, password);
 
-      if (!authResult.success) {
-        toast({
-          title: 'Ошибка авторизации',
-          description: 'Не удалось войти через Telegram',
-          variant: 'destructive'
-        });
-        return;
-      }
-
-      const userResult = await createOrUpdateUser({
-        telegram_id: telegramUser.id,
-        first_name: telegramUser.first_name,
-        last_name: telegramUser.last_name || '',
-        username: telegramUser.username || '',
-        photo_url: telegramUser.photo_url || ''
-      });
-
-      if (userResult.success) {
-        const uid = userResult.user.id.toString();
+      if (result.success) {
+        const uid = result.user.id.toString();
         setUserId(uid);
         setUserIdCookie(uid);
         setIsAuthenticated(true);
@@ -123,7 +109,13 @@ const Index = () => {
         
         toast({
           title: 'Добро пожаловать!',
-          description: `Привет, ${telegramUser.first_name}!`
+          description: `Привет, ${result.user.first_name || 'пользователь'}!`
+        });
+      } else {
+        toast({
+          title: 'Ошибка входа',
+          description: result.error || 'Неверный логин или пароль',
+          variant: 'destructive'
         });
       }
     } catch (error) {
@@ -320,7 +312,7 @@ const Index = () => {
               <Icon name="Wallet" size={32} className="text-white" />
             </div>
             <CardTitle className="text-3xl font-bold">Финансовый планировщик</CardTitle>
-            <p className="text-gray-600">Войдите через Telegram, чтобы начать</p>
+            <p className="text-gray-600">Войдите в личный кабинет</p>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-4">
@@ -337,10 +329,31 @@ const Index = () => {
                 <span>Статистика и диаграммы</span>
               </div>
             </div>
-            <TelegramAuth 
-              botUsername="finansbotsautorbot" 
-              onAuth={handleTelegramAuth}
-            />
+            
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <Label htmlFor="email">Логин</Label>
+                <Input
+                  type="text"
+                  name="email"
+                  placeholder="Введите логин"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Пароль</Label>
+                <Input
+                  type="password"
+                  name="password"
+                  placeholder="Введите пароль"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full bg-gradient-to-r from-blue-500 to-purple-600">
+                Войти
+              </Button>
+            </form>
+            
             <p className="text-xs text-center text-gray-500">
               Ваши данные надежно защищены и доступны только вам
             </p>
