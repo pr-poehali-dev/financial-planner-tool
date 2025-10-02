@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
 import { ChartContainer } from '@/components/ui/chart';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import TelegramAuth from '@/components/TelegramAuth';
+import { 
+  authenticateWithTelegram, 
+  createOrUpdateUser,
+  getTransactions,
+  createTransaction,
+  deleteTransaction as apiDeleteTransaction,
+  getGoals,
+  createGoal,
+  updateGoalProgress as apiUpdateGoalProgress,
+  deleteGoal as apiDeleteGoal,
+  getUserIdFromCookie,
+  setUserIdCookie,
+  clearUserIdCookie
+} from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 
 interface Transaction {
   id: string;
@@ -23,27 +39,240 @@ interface Transaction {
 interface Goal {
   id: string;
   name: string;
-  targetAmount: number;
-  currentAmount: number;
+  target_amount: number;
+  current_amount: number;
   deadline: string;
 }
 
 const Index = () => {
+  const { toast } = useToast();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    { id: '1', type: 'income', amount: 50000, category: 'Зарплата', date: '2025-10-01', description: 'Октябрь' },
-    { id: '2', type: 'expense', amount: 15000, category: 'Продукты', date: '2025-10-02', description: 'Супермаркет' },
-    { id: '3', type: 'expense', amount: 8000, category: 'Транспорт', date: '2025-10-02', description: 'Бензин' },
-  ]);
-  
-  const [goals, setGoals] = useState<Goal[]>([
-    { id: '1', name: 'Отпуск', targetAmount: 100000, currentAmount: 45000, deadline: '2025-12-31' },
-    { id: '2', name: 'Новый MacBook', targetAmount: 150000, currentAmount: 80000, deadline: '2026-03-15' },
-  ]);
-
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [periodFilter, setPeriodFilter] = useState<'day' | 'week' | 'month'>('month');
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false);
+
+  useEffect(() => {
+    const savedUserId = getUserIdFromCookie();
+    if (savedUserId) {
+      setUserId(savedUserId);
+      setIsAuthenticated(true);
+      loadUserData(savedUserId);
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loadUserData = async (uid: string) => {
+    try {
+      const [transactionsRes, goalsRes] = await Promise.all([
+        getTransactions(uid),
+        getGoals(uid)
+      ]);
+
+      if (transactionsRes.success) {
+        setTransactions(transactionsRes.transactions);
+      }
+
+      if (goalsRes.success) {
+        setGoals(goalsRes.goals);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось загрузить данные',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTelegramAuth = async (telegramUser: any) => {
+    try {
+      const authResult = await authenticateWithTelegram(telegramUser);
+
+      if (!authResult.success) {
+        toast({
+          title: 'Ошибка авторизации',
+          description: 'Не удалось войти через Telegram',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      const userResult = await createOrUpdateUser({
+        telegram_id: telegramUser.id,
+        first_name: telegramUser.first_name,
+        last_name: telegramUser.last_name || '',
+        username: telegramUser.username || '',
+        photo_url: telegramUser.photo_url || ''
+      });
+
+      if (userResult.success) {
+        const uid = userResult.user.id.toString();
+        setUserId(uid);
+        setUserIdCookie(uid);
+        setIsAuthenticated(true);
+        await loadUserData(uid);
+        
+        toast({
+          title: 'Добро пожаловать!',
+          description: `Привет, ${telegramUser.first_name}!`
+        });
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Произошла ошибка при авторизации',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleLogout = () => {
+    clearUserIdCookie();
+    setIsAuthenticated(false);
+    setUserId(null);
+    setTransactions([]);
+    setGoals([]);
+    toast({
+      title: 'Выход выполнен',
+      description: 'До скорой встречи!'
+    });
+  };
+
+  const handleAddTransaction = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!userId) return;
+
+    const formData = new FormData(e.currentTarget);
+    const transactionData = {
+      type: formData.get('type') as 'income' | 'expense',
+      amount: Number(formData.get('amount')),
+      category: formData.get('category') as string,
+      date: formData.get('date') as string,
+      description: formData.get('description') as string,
+    };
+
+    try {
+      const result = await createTransaction(userId, transactionData);
+      if (result.success) {
+        setTransactions([result.transaction, ...transactions]);
+        setIsAddTransactionOpen(false);
+        toast({
+          title: 'Успешно',
+          description: 'Транзакция добавлена'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось добавить транзакцию',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDeleteTransaction = async (id: string) => {
+    if (!userId) return;
+
+    try {
+      const result = await apiDeleteTransaction(userId, id);
+      if (result.success) {
+        setTransactions(transactions.filter(t => t.id !== id));
+        toast({
+          title: 'Удалено',
+          description: 'Транзакция удалена'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось удалить транзакцию',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleAddGoal = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!userId) return;
+
+    const formData = new FormData(e.currentTarget);
+    const goalData = {
+      name: formData.get('name') as string,
+      targetAmount: Number(formData.get('targetAmount')),
+      currentAmount: Number(formData.get('currentAmount') || 0),
+      deadline: formData.get('deadline') as string,
+    };
+
+    try {
+      const result = await createGoal(userId, goalData);
+      if (result.success) {
+        setGoals([result.goal, ...goals]);
+        setIsAddGoalOpen(false);
+        toast({
+          title: 'Успешно',
+          description: 'Цель создана'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось создать цель',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleUpdateGoalProgress = async (goalId: string, amount: number) => {
+    if (!userId) return;
+
+    try {
+      const result = await apiUpdateGoalProgress(userId, goalId, amount);
+      if (result.success) {
+        setGoals(goals.map(g => g.id === goalId ? result.goal : g));
+        toast({
+          title: 'Обновлено',
+          description: 'Прогресс цели обновлен'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось обновить прогресс',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDeleteGoal = async (id: string) => {
+    if (!userId) return;
+
+    try {
+      const result = await apiDeleteGoal(userId, id);
+      if (result.success) {
+        setGoals(goals.filter(g => g.id !== id));
+        toast({
+          title: 'Удалено',
+          description: 'Цель удалена'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось удалить цель',
+        variant: 'destructive'
+      });
+    }
+  };
 
   const balance = transactions.reduce((acc, t) => 
     acc + (t.type === 'income' ? t.amount : -t.amount), 0
@@ -71,48 +300,55 @@ const Index = () => {
 
   const COLORS = ['#3B82F6', '#10B981', '#EF4444', '#F59E0B', '#8B5CF6'];
 
-  const addTransaction = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const newTransaction: Transaction = {
-      id: Date.now().toString(),
-      type: formData.get('type') as 'income' | 'expense',
-      amount: Number(formData.get('amount')),
-      category: formData.get('category') as string,
-      date: formData.get('date') as string,
-      description: formData.get('description') as string,
-    };
-    setTransactions([newTransaction, ...transactions]);
-    setIsAddTransactionOpen(false);
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <Icon name="Loader2" size={48} className="animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-gray-600">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const deleteTransaction = (id: string) => {
-    setTransactions(transactions.filter(t => t.id !== id));
-  };
-
-  const addGoal = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const newGoal: Goal = {
-      id: Date.now().toString(),
-      name: formData.get('name') as string,
-      targetAmount: Number(formData.get('targetAmount')),
-      currentAmount: Number(formData.get('currentAmount') || 0),
-      deadline: formData.get('deadline') as string,
-    };
-    setGoals([newGoal, ...goals]);
-    setIsAddGoalOpen(false);
-  };
-
-  const updateGoalProgress = (id: string, amount: number) => {
-    setGoals(goals.map(g => 
-      g.id === id ? { ...g, currentAmount: g.currentAmount + amount } : g
-    ));
-  };
-
-  const deleteGoal = (id: string) => {
-    setGoals(goals.filter(g => g.id !== id));
-  };
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <Card className="w-full max-w-md mx-4 shadow-2xl">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+              <Icon name="Wallet" size={32} className="text-white" />
+            </div>
+            <CardTitle className="text-3xl font-bold">Финансовый планировщик</CardTitle>
+            <p className="text-gray-600">Войдите через Telegram, чтобы начать</p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Icon name="Check" size={18} className="text-green-500" />
+                <span>Контроль доходов и расходов</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Icon name="Check" size={18} className="text-green-500" />
+                <span>Финансовые цели и прогресс</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Icon name="Check" size={18} className="text-green-500" />
+                <span>Статистика и диаграммы</span>
+              </div>
+            </div>
+            <TelegramAuth 
+              botUsername="your_bot_username" 
+              onAuth={handleTelegramAuth}
+            />
+            <p className="text-xs text-center text-gray-500">
+              Ваши данные надежно защищены и доступны только вам
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -135,7 +371,7 @@ const Index = () => {
                   <DialogTitle>Новая транзакция</DialogTitle>
                   <DialogDescription>Добавьте доход или расход</DialogDescription>
                 </DialogHeader>
-                <form onSubmit={addTransaction} className="space-y-4">
+                <form onSubmit={handleAddTransaction} className="space-y-4">
                   <div>
                     <Label htmlFor="type">Тип</Label>
                     <Select name="type" defaultValue="expense" required>
@@ -168,6 +404,10 @@ const Index = () => {
                 </form>
               </DialogContent>
             </Dialog>
+            <Button variant="outline" onClick={handleLogout}>
+              <Icon name="LogOut" size={18} className="mr-2" />
+              Выйти
+            </Button>
           </div>
         </div>
 
@@ -221,105 +461,130 @@ const Index = () => {
               </Card>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            {transactions.length === 0 && goals.length === 0 ? (
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Icon name="PieChart" size={20} />
-                    Расходы по категориям
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="h-80">
-                  <ChartContainer config={{}}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={categoryData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {categoryData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
+                <CardContent className="py-12">
+                  <div className="text-center text-muted-foreground">
+                    <Icon name="Wallet" size={48} className="mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium mb-2">Добро пожаловать!</p>
+                    <p>Начните добавлять транзакции и цели</p>
+                  </div>
                 </CardContent>
               </Card>
+            ) : (
+              <>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Icon name="PieChart" size={20} />
+                        Расходы по категориям
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-80">
+                      {categoryData.length > 0 ? (
+                        <ChartContainer config={{}}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={categoryData}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {categoryData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </ChartContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground">
+                          Нет данных
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Icon name="Target" size={20} />
-                    Активные цели
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {goals.slice(0, 3).map(goal => {
-                    const progress = (goal.currentAmount / goal.targetAmount) * 100;
-                    return (
-                      <div key={goal.id} className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">{goal.name}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {goal.currentAmount.toLocaleString('ru-RU')} / {goal.targetAmount.toLocaleString('ru-RU')} ₽
-                          </span>
-                        </div>
-                        <Progress value={progress} className="h-2" />
-                      </div>
-                    );
-                  })}
-                  {goals.length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">
-                      Нет активных целей
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Icon name="Clock" size={20} />
-                  Последние транзакции
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {transactions.slice(0, 5).map(transaction => (
-                    <div key={transaction.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100'}`}>
-                          <Icon 
-                            name={transaction.type === 'income' ? 'TrendingUp' : 'TrendingDown'} 
-                            size={18}
-                            className={transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}
-                          />
-                        </div>
-                        <div>
-                          <div className="font-medium">{transaction.category}</div>
-                          <div className="text-sm text-muted-foreground">{transaction.description}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`font-semibold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                          {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toLocaleString('ru-RU')} ₽
-                        </div>
-                        <div className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString('ru-RU')}</div>
-                      </div>
-                    </div>
-                  ))}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Icon name="Target" size={20} />
+                        Активные цели
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {goals.slice(0, 3).map(goal => {
+                        const progress = (goal.current_amount / goal.target_amount) * 100;
+                        return (
+                          <div key={goal.id} className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">{goal.name}</span>
+                              <span className="text-sm text-muted-foreground">
+                                {goal.current_amount.toLocaleString('ru-RU')} / {goal.target_amount.toLocaleString('ru-RU')} ₽
+                              </span>
+                            </div>
+                            <Progress value={progress} className="h-2" />
+                          </div>
+                        );
+                      })}
+                      {goals.length === 0 && (
+                        <p className="text-center text-muted-foreground py-8">
+                          Нет активных целей
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon name="Clock" size={20} />
+                      Последние транзакции
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {transactions.slice(0, 5).map(transaction => (
+                        <div key={transaction.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100'}`}>
+                              <Icon 
+                                name={transaction.type === 'income' ? 'TrendingUp' : 'TrendingDown'} 
+                                size={18}
+                                className={transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}
+                              />
+                            </div>
+                            <div>
+                              <div className="font-medium">{transaction.category}</div>
+                              <div className="text-sm text-muted-foreground">{transaction.description}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={`font-semibold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                              {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toLocaleString('ru-RU')} ₽
+                            </div>
+                            <div className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString('ru-RU')}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {transactions.length === 0 && (
+                        <p className="text-center text-muted-foreground py-8">
+                          Нет транзакций
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="transactions" className="space-y-6">
@@ -353,7 +618,7 @@ const Index = () => {
                       <Button 
                         variant="ghost" 
                         size="icon"
-                        onClick={() => deleteTransaction(transaction.id)}
+                        onClick={() => handleDeleteTransaction(transaction.id)}
                         className="text-destructive hover:text-destructive"
                       >
                         <Icon name="Trash2" size={18} />
@@ -414,27 +679,33 @@ const Index = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="h-96">
-                <ChartContainer config={{}}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={true}
-                        label={({ name, value }) => `${name}: ${value.toLocaleString('ru-RU')} ₽`}
-                        outerRadius={120}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {categoryData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
+                {categoryData.length > 0 ? (
+                  <ChartContainer config={{}}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={categoryData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={true}
+                          label={({ name, value }) => `${name}: ${value.toLocaleString('ru-RU')} ₽`}
+                          outerRadius={120}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {categoryData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    Нет данных для отображения
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -453,7 +724,7 @@ const Index = () => {
                     <DialogTitle>Новая финансовая цель</DialogTitle>
                     <DialogDescription>Установите цель и отслеживайте прогресс</DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={addGoal} className="space-y-4">
+                  <form onSubmit={handleAddGoal} className="space-y-4">
                     <div>
                       <Label htmlFor="name">Название</Label>
                       <Input type="text" name="name" placeholder="Отпуск, Машина..." required />
@@ -478,7 +749,7 @@ const Index = () => {
 
             <div className="grid gap-4 md:grid-cols-2">
               {goals.map(goal => {
-                const progress = (goal.currentAmount / goal.targetAmount) * 100;
+                const progress = (goal.current_amount / goal.target_amount) * 100;
                 const isCompleted = progress >= 100;
                 
                 return (
@@ -500,7 +771,7 @@ const Index = () => {
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          onClick={() => deleteGoal(goal.id)}
+                          onClick={() => handleDeleteGoal(goal.id)}
                           className="text-destructive hover:text-destructive"
                         >
                           <Icon name="Trash2" size={18} />
@@ -511,10 +782,10 @@ const Index = () => {
                       <div>
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-2xl font-bold">
-                            {goal.currentAmount.toLocaleString('ru-RU')} ₽
+                            {goal.current_amount.toLocaleString('ru-RU')} ₽
                           </span>
                           <span className="text-sm text-muted-foreground">
-                            из {goal.targetAmount.toLocaleString('ru-RU')} ₽
+                            из {goal.target_amount.toLocaleString('ru-RU')} ₽
                           </span>
                         </div>
                         <Progress value={Math.min(progress, 100)} className="h-3" />
@@ -536,7 +807,7 @@ const Index = () => {
                               const input = document.getElementById(`goal-amount-${goal.id}`) as HTMLInputElement;
                               const amount = Number(input.value);
                               if (amount > 0) {
-                                updateGoalProgress(goal.id, amount);
+                                handleUpdateGoalProgress(goal.id, amount);
                                 input.value = '';
                               }
                             }}
