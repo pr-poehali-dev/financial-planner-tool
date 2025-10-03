@@ -11,6 +11,8 @@ import {
   getAdminUsers, 
   createAdminUser, 
   deleteAdminUser,
+  grantPremium,
+  revokePremium,
   getAdminIdFromCookie,
   setAdminIdCookie,
   clearAdminIdCookie 
@@ -22,6 +24,8 @@ interface User {
   first_name: string;
   last_name: string;
   created_at: string;
+  is_premium?: boolean;
+  premium_expires_at?: string;
 }
 
 const Admin = () => {
@@ -176,6 +180,50 @@ const Admin = () => {
       title: 'Скопировано',
       description: 'Текст скопирован в буфер обмена'
     });
+  };
+
+  const handleGrantPremium = async (userId: string, days: number = 30) => {
+    if (!adminId) return;
+
+    try {
+      const result = await grantPremium(adminId, userId, days);
+      
+      if (result.success) {
+        setUsers(users.map(u => u.id === userId ? { ...u, is_premium: true, premium_expires_at: result.user.premium_expires_at } : u));
+        toast({
+          title: 'Премиум выдан',
+          description: `Премиум статус на ${days} дней`
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось выдать премиум',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleRevokePremium = async (userId: string) => {
+    if (!adminId) return;
+
+    try {
+      const result = await revokePremium(adminId, userId);
+      
+      if (result.success) {
+        setUsers(users.map(u => u.id === userId ? { ...u, is_premium: false, premium_expires_at: undefined } : u));
+        toast({
+          title: 'Премиум отозван',
+          description: 'Премиум статус снят'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось отозвать премиум',
+        variant: 'destructive'
+      });
+    }
   };
 
   if (isLoading) {
@@ -339,26 +387,78 @@ const Admin = () => {
                       <Icon name="User" size={24} className="text-white" />
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium">
-                        {user.first_name} {user.last_name}
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {user.first_name} {user.last_name}
+                        </span>
+                        {user.is_premium && (
+                          <span className="px-2 py-0.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold rounded-full">
+                            PREMIUM
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground flex items-center gap-2">
                         <Icon name="Mail" size={14} />
                         {user.email}
                       </div>
+                      {user.is_premium && user.premium_expires_at && (
+                        <div className="text-xs text-orange-600 mt-1">
+                          Истекает: {new Date(user.premium_expires_at).toLocaleDateString('ru-RU', { 
+                            day: 'numeric', 
+                            month: 'long', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       Создан: {new Date(user.created_at).toLocaleDateString('ru-RU')}
                     </div>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => handleDeleteUser(user.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Icon name="Trash2" size={18} />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {user.is_premium ? (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleGrantPremium(user.id, 30)}
+                          className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                        >
+                          <Icon name="Plus" size={14} className="mr-1" />
+                          +30 дней
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleRevokePremium(user.id)}
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                        >
+                          <Icon name="X" size={14} className="mr-1" />
+                          Отозвать
+                        </Button>
+                      </>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleGrantPremium(user.id, 30)}
+                        className="text-green-600 border-green-300 hover:bg-green-50"
+                      >
+                        <Icon name="Star" size={14} className="mr-1" />
+                        Выдать Premium
+                      </Button>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handleDeleteUser(user.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Icon name="Trash2" size={18} />
+                    </Button>
+                  </div>
                 </div>
               ))}
               {users.length === 0 && (

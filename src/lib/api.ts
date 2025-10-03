@@ -80,6 +80,30 @@ export const deleteAdminUser = async (adminId: string, userId: string) => {
   return response.json();
 };
 
+export const grantPremium = async (adminId: string, userId: string, days: number = 30) => {
+  const response = await fetch(API_URLS.adminUsers, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Id': adminId,
+    },
+    body: JSON.stringify({ userId, action: 'grant_premium', days }),
+  });
+  return response.json();
+};
+
+export const revokePremium = async (adminId: string, userId: string) => {
+  const response = await fetch(API_URLS.adminUsers, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Id': adminId,
+    },
+    body: JSON.stringify({ userId, action: 'revoke_premium' }),
+  });
+  return response.json();
+};
+
 export const getTransactions = async (userId: string) => {
   const response = await fetch(API_URLS.transactions, {
     method: 'GET',

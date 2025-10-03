@@ -4,6 +4,7 @@ import os
 import secrets
 import string
 from typing import Dict, Any
+from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -32,7 +33,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'statusCode': 200,
             'headers': {
                 'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Id',
                 'Access-Control-Max-Age': '86400'
             },
@@ -66,7 +67,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         if method == 'GET':
             cursor.execute('''
-                SELECT id, email, first_name, last_name, username, created_at
+                SELECT id, email, first_name, last_name, username, created_at, is_premium, premium_expires_at
                 FROM users
                 WHERE email IS NOT NULL
                 ORDER BY created_at DESC
@@ -77,6 +78,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 user = dict(row)
                 if 'created_at' in user and user['created_at']:
                     user['created_at'] = user['created_at'].isoformat()
+                if 'premium_expires_at' in user and user['premium_expires_at']:
+                    user['premium_expires_at'] = user['premium_expires_at'].isoformat()
                 users.append(user)
             
             return {
@@ -150,6 +153,85 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'success': True}),
+                'isBase64Encoded': False
+            }
+        
+        elif method == 'PUT':
+            body = json.loads(event.get('body', '{}'))
+            user_id = body.get('userId')
+            action = body.get('action')
+            
+            if not user_id or not action:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Missing userId or action'}),
+                    'isBase64Encoded': False
+                }
+            
+            if action == 'grant_premium':
+                days = body.get('days', 30)
+                expires_at = datetime.now() + timedelta(days=days)
+                
+                cursor.execute('''
+                    UPDATE users 
+                    SET is_premium = TRUE, premium_expires_at = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    RETURNING id, email, first_name, last_name, is_premium, premium_expires_at
+                ''', (expires_at, user_id))
+                
+                user_row = cursor.fetchone()
+                if not user_row:
+                    return {
+                        'statusCode': 404,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'User not found'}),
+                        'isBase64Encoded': False
+                    }
+                
+                conn.commit()
+                user = dict(user_row)
+                if 'premium_expires_at' in user and user['premium_expires_at']:
+                    user['premium_expires_at'] = user['premium_expires_at'].isoformat()
+                
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'success': True, 'user': user}),
+                    'isBase64Encoded': False
+                }
+            
+            elif action == 'revoke_premium':
+                cursor.execute('''
+                    UPDATE users 
+                    SET is_premium = FALSE, premium_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    RETURNING id, email, first_name, last_name, is_premium, premium_expires_at
+                ''', (user_id,))
+                
+                user_row = cursor.fetchone()
+                if not user_row:
+                    return {
+                        'statusCode': 404,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'User not found'}),
+                        'isBase64Encoded': False
+                    }
+                
+                conn.commit()
+                user = dict(user_row)
+                
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'success': True, 'user': user}),
+                    'isBase64Encoded': False
+                }
+            
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Invalid action'}),
                 'isBase64Encoded': False
             }
         

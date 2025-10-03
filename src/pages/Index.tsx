@@ -53,6 +53,7 @@ const Index = () => {
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('expense');
+  const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     const savedUserId = getUserIdFromCookie();
@@ -74,6 +75,7 @@ const Index = () => {
 
       if (transactionsRes.success) {
         setTransactions(transactionsRes.transactions);
+        setIsPremium(transactionsRes.isPremium || false);
       }
 
       if (goalsRes.success) {
@@ -163,13 +165,28 @@ const Index = () => {
           title: 'Успешно',
           description: 'Транзакция добавлена'
         });
+      } else if (result.premiumRequired) {
+        toast({
+          title: 'Требуется Premium',
+          description: 'Для добавления транзакций нужен Premium статус. Обратитесь к администратору.',
+          variant: 'destructive'
+        });
       }
-    } catch (error) {
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось добавить транзакцию',
-        variant: 'destructive'
-      });
+    } catch (error: any) {
+      const errorData = error?.response?.json ? await error.response.json() : null;
+      if (errorData?.premiumRequired) {
+        toast({
+          title: 'Требуется Premium',
+          description: 'Для добавления транзакций нужен Premium статус. Обратитесь к администратору.',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Ошибка',
+          description: 'Не удалось добавить транзакцию',
+          variant: 'destructive'
+        });
+      }
     }
   };
 
@@ -216,13 +233,28 @@ const Index = () => {
           title: 'Успешно',
           description: 'Цель создана'
         });
+      } else if (result.premiumRequired) {
+        toast({
+          title: 'Требуется Premium',
+          description: 'Для создания целей нужен Premium статус. Обратитесь к администратору.',
+          variant: 'destructive'
+        });
       }
-    } catch (error) {
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось создать цель',
-        variant: 'destructive'
-      });
+    } catch (error: any) {
+      const errorData = error?.response?.json ? await error.response.json() : null;
+      if (errorData?.premiumRequired) {
+        toast({
+          title: 'Требуется Premium',
+          description: 'Для создания целей нужен Premium статус. Обратитесь к администратору.',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Ошибка',
+          description: 'Не удалось создать цель',
+          variant: 'destructive'
+        });
+      }
     }
   };
 
@@ -370,7 +402,14 @@ const Index = () => {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Финансовый планировщик</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-4xl font-bold text-gray-900">Финансовый планировщик</h1>
+              {isPremium && (
+                <span className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-sm font-bold rounded-full shadow-lg">
+                  ⭐ PREMIUM
+                </span>
+              )}
+            </div>
             <p className="text-gray-600">Управляйте своими финансами эффективно</p>
           </div>
           <div className="flex gap-2">
@@ -450,6 +489,30 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
+            {!isPremium && (
+              <Card className="border-orange-300 bg-gradient-to-r from-orange-50 to-yellow-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-orange-100 rounded-full">
+                      <Icon name="Lock" size={24} className="text-orange-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-orange-900 mb-1">
+                        Получите Premium для полного доступа
+                      </h3>
+                      <p className="text-sm text-orange-700 mb-3">
+                        С Premium вы сможете добавлять транзакции, создавать цели и управлять своими финансами. 
+                        Все ваши данные сохраняются и будут доступны после активации Premium.
+                      </p>
+                      <p className="text-xs text-orange-600 font-medium">
+                        💡 Обратитесь к администратору для получения Premium статуса
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
             <div className="grid gap-4 md:grid-cols-3">
               <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg">
                 <CardHeader className="pb-2">

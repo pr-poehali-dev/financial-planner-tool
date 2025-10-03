@@ -17,6 +17,25 @@ def json_serializer(obj):
         return obj.isoformat()
     raise TypeError(f'Object of type {type(obj)} is not JSON serializable')
 
+def check_premium_status(cursor, user_id: str) -> bool:
+    cursor.execute('''
+        SELECT is_premium, premium_expires_at 
+        FROM users 
+        WHERE id = %s
+    ''', (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        return False
+    
+    if not user['is_premium']:
+        return False
+    
+    if user['premium_expires_at'] and user['premium_expires_at'] < datetime.now():
+        cursor.execute('UPDATE users SET is_premium = FALSE WHERE id = %s', (user_id,))
+        return False
+    
+    return True
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
     Business: Manage user transactions (CRUD operations)
@@ -54,6 +73,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
+        is_premium = check_premium_status(cursor, user_id)
+        
         if method == 'GET':
             cursor.execute('''
                 SELECT id, type, amount, category, description, date, created_at
@@ -67,11 +88,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'success': True, 'transactions': transactions}, default=json_serializer),
+                'body': json.dumps({'success': True, 'transactions': transactions, 'isPremium': is_premium}, default=json_serializer),
                 'isBase64Encoded': False
             }
         
         elif method == 'POST':
+            if not is_premium:
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Premium subscription required', 'premiumRequired': True}),
+                    'isBase64Encoded': False
+                }
             body = json.loads(event.get('body', '{}'))
             
             cursor.execute('''
@@ -98,6 +126,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         
         elif method == 'DELETE':
+            if not is_premium:
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Premium subscription required', 'premiumRequired': True}),
+                    'isBase64Encoded': False
+                }
+            
             query_params = event.get('queryStringParameters') or {}
             transaction_id = query_params.get('id')
             
