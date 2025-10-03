@@ -499,9 +499,9 @@ const Index = () => {
                         Расходы по категориям
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-80">
+                    <CardContent>
                       {categoryData.length > 0 ? (
-                        <ChartContainer config={{}}>
+                        <div className="w-full h-80">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
@@ -521,9 +521,9 @@ const Index = () => {
                               <Tooltip />
                             </PieChart>
                           </ResponsiveContainer>
-                        </ChartContainer>
+                        </div>
                       ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground">
+                        <div className="h-80 flex items-center justify-center text-muted-foreground">
                           Нет данных
                         </div>
                       )}
