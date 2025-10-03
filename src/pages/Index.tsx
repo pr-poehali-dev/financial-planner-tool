@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
-import { ChartContainer } from '@/components/ui/chart';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { 
   loginUser,
@@ -672,8 +671,8 @@ const Index = () => {
                   Доходы и расходы
                 </CardTitle>
               </CardHeader>
-              <CardContent className="h-80">
-                <ChartContainer config={{}}>
+              <CardContent>
+                <div className="w-full h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={[
                       { name: 'Доходы', amount: totalIncome },
@@ -686,7 +685,7 @@ const Index = () => {
                       <Bar dataKey="amount" fill="#3B82F6" radius={[8, 8, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                </ChartContainer>
+                </div>
               </CardContent>
             </Card>
 
@@ -697,9 +696,9 @@ const Index = () => {
                   Детализация по категориям
                 </CardTitle>
               </CardHeader>
-              <CardContent className="h-96">
+              <CardContent>
                 {categoryData.length > 0 ? (
-                  <ChartContainer config={{}}>
+                  <div className="w-full h-96">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -719,9 +718,9 @@ const Index = () => {
                         <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
-                  </ChartContainer>
+                  </div>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                  <div className="h-96 flex items-center justify-center text-muted-foreground">
                     Нет данных для отображения
                   </div>
                 )}
