@@ -159,6 +159,7 @@ const Index = () => {
       if (result.success) {
         setTransactions([result.transaction, ...transactions]);
         setIsAddTransactionOpen(false);
+        e.currentTarget.reset();
         toast({
           title: 'Успешно',
           description: 'Транзакция добавлена'
@@ -211,6 +212,7 @@ const Index = () => {
       if (result.success) {
         setGoals([result.goal, ...goals]);
         setIsAddGoalOpen(false);
+        e.currentTarget.reset();
         toast({
           title: 'Успешно',
           description: 'Цель создана'
@@ -748,11 +750,11 @@ const Index = () => {
                     </div>
                     <div>
                       <Label htmlFor="targetAmount">Целевая сумма</Label>
-                      <Input type="number" name="targetAmount" placeholder="0" required />
+                      <Input type="number" name="targetAmount" placeholder="0" step="0.01" required />
                     </div>
                     <div>
                       <Label htmlFor="currentAmount">Текущая сумма</Label>
-                      <Input type="number" name="currentAmount" placeholder="0" defaultValue="0" />
+                      <Input type="number" name="currentAmount" placeholder="0" step="0.01" defaultValue="0" />
                     </div>
                     <div>
                       <Label htmlFor="deadline">Дедлайн</Label>

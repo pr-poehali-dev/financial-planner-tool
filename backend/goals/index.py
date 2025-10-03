@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Dict, Any
+from datetime import datetime, date
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from decimal import Decimal
@@ -9,10 +10,12 @@ def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
     return psycopg2.connect(dsn)
 
-def decimal_default(obj):
+def json_serializer(obj):
     if isinstance(obj, Decimal):
         return float(obj)
-    raise TypeError
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f'Object of type {type(obj)} is not JSON serializable')
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -64,7 +67,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'success': True, 'goals': goals}, default=decimal_default),
+                'body': json.dumps({'success': True, 'goals': goals}, default=json_serializer),
                 'isBase64Encoded': False
             }
         
@@ -89,7 +92,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {
                 'statusCode': 201,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'success': True, 'goal': goal}, default=decimal_default),
+                'body': json.dumps({'success': True, 'goal': goal}, default=json_serializer),
                 'isBase64Encoded': False
             }
         
@@ -120,7 +123,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'success': True, 'goal': dict(goal)}, default=decimal_default),
+                'body': json.dumps({'success': True, 'goal': dict(goal)}, default=json_serializer),
                 'isBase64Encoded': False
             }
         
