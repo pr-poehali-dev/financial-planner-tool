@@ -160,7 +160,11 @@ const Index = () => {
       
       if (result.success) {
         setTransactions([result.transaction, ...transactions]);
-        e.currentTarget.reset();
+        try {
+          e.currentTarget.reset();
+        } catch (err) {
+          // Форма может быть недоступна после закрытия диалога
+        }
         setIsAddTransactionOpen(false);
         toast({
           title: 'Успешно',
@@ -230,8 +234,12 @@ const Index = () => {
       const result = await createGoal(userId, goalData);
       if (result.success) {
         setGoals([result.goal, ...goals]);
+        try {
+          e.currentTarget.reset();
+        } catch (err) {
+          // Форма может быть недоступна после закрытия диалога
+        }
         setIsAddGoalOpen(false);
-        e.currentTarget.reset();
         toast({
           title: 'Успешно',
           description: 'Цель создана'
