@@ -218,10 +218,19 @@ const Index = () => {
       const response = await fetch('/api/organizations', {
         headers: { 'X-User-Id': uid }
       });
+      
+      if (!response.ok) {
+        return { success: false, organizations: [] };
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        return { success: false, organizations: [] };
+      }
+      
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error('Error loading organizations:', error);
       return { success: false, organizations: [] };
     }
   };
