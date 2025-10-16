@@ -122,7 +122,7 @@ export const createTransaction = async (userId: string, transaction: any) => {
     body: JSON.stringify(transaction),
   });
   const data = await response.json();
-  if (!response.ok && !data.success) {
+  if (!response.ok) {
     throw { response: { status: response.status, data } };
   }
   return data;
@@ -153,7 +153,11 @@ export const createGoal = async (userId: string, goal: any) => {
     },
     body: JSON.stringify(goal),
   });
-  return response.json();
+  const data = await response.json();
+  if (!response.ok) {
+    throw { response: { status: response.status, data } };
+  }
+  return data;
 };
 
 export const updateGoalProgress = async (userId: string, goalId: string, amount: number) => {

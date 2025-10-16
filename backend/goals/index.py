@@ -79,7 +79,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             cursor.execute('''
                 SELECT id, name, target_amount, current_amount, deadline, created_at
                 FROM goals
-                WHERE user_id = %s
+                WHERE user_id = %s AND target_amount > 0
                 ORDER BY deadline ASC
             ''', (user_id,))
             
@@ -193,7 +193,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'isBase64Encoded': False
                 }
             
-            cursor.execute('UPDATE goals SET current_amount = 0, target_amount = 0 WHERE id = %s AND user_id = %s', (goal_id, user_id))
+            cursor.execute('DELETE FROM goals WHERE id = %s AND user_id = %s', (goal_id, user_id))
             conn.commit()
             
             return {
