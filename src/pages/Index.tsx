@@ -165,15 +165,17 @@ const Index = () => {
           title: 'Успешно',
           description: 'Транзакция добавлена'
         });
-      } else if (result.premiumRequired) {
+      } else if (result.premiumRequired || result.error) {
         toast({
-          title: 'Требуется Premium',
-          description: 'Для добавления транзакций нужен Premium статус. Обратитесь к администратору.',
+          title: result.premiumRequired ? 'Требуется Premium' : 'Ошибка',
+          description: result.premiumRequired 
+            ? 'Для добавления транзакций нужен Premium статус. Обратитесь к администратору.'
+            : result.error || 'Не удалось добавить транзакцию',
           variant: 'destructive'
         });
       }
     } catch (error: any) {
-      const errorData = error?.response?.json ? await error.response.json() : null;
+      const errorData = error?.response?.data;
       if (errorData?.premiumRequired) {
         toast({
           title: 'Требуется Premium',
@@ -183,7 +185,7 @@ const Index = () => {
       } else {
         toast({
           title: 'Ошибка',
-          description: 'Не удалось добавить транзакцию',
+          description: errorData?.error || 'Не удалось добавить транзакцию',
           variant: 'destructive'
         });
       }

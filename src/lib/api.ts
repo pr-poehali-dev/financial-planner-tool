@@ -121,7 +121,11 @@ export const createTransaction = async (userId: string, transaction: any) => {
     },
     body: JSON.stringify(transaction),
   });
-  return response.json();
+  const data = await response.json();
+  if (!response.ok && !data.success) {
+    throw { response: { status: response.status, data } };
+  }
+  return data;
 };
 
 export const deleteTransaction = async (userId: string, transactionId: string) => {
