@@ -23,6 +23,7 @@ import {
   clearUserIdCookie
 } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import OrganizationsManager from '@/components/OrganizationsManager';
 
 interface Transaction {
   id: string;
@@ -41,6 +42,15 @@ interface Goal {
   deadline: string;
 }
 
+interface Organization {
+  id: number;
+  name: string;
+  type: 'ИП' | 'ООО' | 'АО';
+  tax_system?: 'ОСНО' | 'УСН' | 'ЕСХН' | 'ПСН' | 'НПД' | 'АУСН';
+  created_at: string;
+  updated_at: string;
+}
+
 const Index = () => {
   const { toast } = useToast();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -54,6 +64,7 @@ const Index = () => {
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('expense');
   const [isPremium, setIsPremium] = useState(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
 
   useEffect(() => {
     const savedUserId = getUserIdFromCookie();
@@ -68,9 +79,10 @@ const Index = () => {
 
   const loadUserData = async (uid: string) => {
     try {
-      const [transactionsRes, goalsRes] = await Promise.all([
+      const [transactionsRes, goalsRes, orgsRes] = await Promise.all([
         getTransactions(uid),
-        getGoals(uid)
+        getGoals(uid),
+        loadOrganizations(uid)
       ]);
 
       if (transactionsRes.success) {
@@ -80,6 +92,10 @@ const Index = () => {
 
       if (goalsRes.success) {
         setGoals(goalsRes.goals);
+      }
+
+      if (orgsRes.success) {
+        setOrganizations(orgsRes.organizations);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -194,6 +210,19 @@ const Index = () => {
           variant: 'destructive'
         });
       }
+    }
+  };
+
+  const loadOrganizations = async (uid: string) => {
+    try {
+      const response = await fetch('/api/organizations', {
+        headers: { 'X-User-Id': uid }
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error loading organizations:', error);
+      return { success: false, organizations: [] };
     }
   };
 
@@ -482,7 +511,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className={`grid w-full ${isPremium ? 'grid-cols-5' : 'grid-cols-4'} lg:w-auto lg:inline-grid`}>
             <TabsTrigger value="dashboard" className="gap-2">
               <Icon name="LayoutDashboard" size={16} />
               <span className="hidden sm:inline">Дашборд</span>
@@ -499,6 +528,12 @@ const Index = () => {
               <Icon name="Target" size={16} />
               <span className="hidden sm:inline">Цели</span>
             </TabsTrigger>
+            {isPremium && (
+              <TabsTrigger value="organizations" className="gap-2">
+                <Icon name="Building2" size={16} />
+                <span className="hidden sm:inline">Организации</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -929,6 +964,16 @@ const Index = () => {
               </Card>
             )}
           </TabsContent>
+
+          {isPremium && (
+            <TabsContent value="organizations" className="space-y-6">
+              <OrganizationsManager 
+                userId={userId || ''} 
+                organizations={organizations}
+                onUpdate={() => userId && loadUserData(userId)}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
