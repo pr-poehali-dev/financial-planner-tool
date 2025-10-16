@@ -100,30 +100,69 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'error': 'Premium subscription required', 'premiumRequired': True}),
                     'isBase64Encoded': False
                 }
-            body = json.loads(event.get('body', '{}'))
             
-            cursor.execute('''
-                INSERT INTO transactions (user_id, type, amount, category, description, date)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id, type, amount, category, description, date, created_at
-            ''', (
-                user_id,
-                body.get('type'),
-                body.get('amount'),
-                body.get('category'),
-                body.get('description', ''),
-                body.get('date')
-            ))
-            
-            transaction = dict(cursor.fetchone())
-            conn.commit()
-            
-            return {
-                'statusCode': 201,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'success': True, 'transaction': transaction}, default=json_serializer),
-                'isBase64Encoded': False
-            }
+            try:
+                body = json.loads(event.get('body', '{}'))
+                
+                trans_type = body.get('type')
+                amount = body.get('amount')
+                category = body.get('category')
+                date_val = body.get('date')
+                
+                if not trans_type or trans_type not in ['income', 'expense']:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Invalid transaction type', 'success': False}),
+                        'isBase64Encoded': False
+                    }
+                
+                if not amount or float(amount) <= 0:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Invalid amount', 'success': False}),
+                        'isBase64Encoded': False
+                    }
+                
+                if not category:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Category is required', 'success': False}),
+                        'isBase64Encoded': False
+                    }
+                
+                cursor.execute('''
+                    INSERT INTO transactions (user_id, type, amount, category, description, date)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id, type, amount, category, description, date, created_at
+                ''', (
+                    user_id,
+                    trans_type,
+                    float(amount),
+                    category,
+                    body.get('description', ''),
+                    date_val
+                ))
+                
+                transaction = dict(cursor.fetchone())
+                conn.commit()
+                
+                return {
+                    'statusCode': 201,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'success': True, 'transaction': transaction}, default=json_serializer),
+                    'isBase64Encoded': False
+                }
+            except Exception as e:
+                conn.rollback()
+                return {
+                    'statusCode': 500,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': f'Failed to create transaction: {str(e)}', 'success': False}),
+                    'isBase64Encoded': False
+                }
         
         elif method == 'DELETE':
             if not is_premium:

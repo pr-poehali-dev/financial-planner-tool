@@ -113,19 +113,35 @@ export const getTransactions = async (userId: string) => {
 };
 
 export const createTransaction = async (userId: string, transaction: any) => {
-  const response = await fetch(API_URLS.transactions, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId,
-    },
-    body: JSON.stringify(transaction),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    throw { response: { status: response.status, data } };
+  try {
+    const response = await fetch(API_URLS.transactions, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+      },
+      body: JSON.stringify(transaction),
+    });
+    
+    const text = await response.text();
+    let data;
+    
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('Failed to parse response:', text);
+      throw { response: { status: response.status, data: { error: 'Invalid JSON response' } } };
+    }
+    
+    if (!response.ok) {
+      throw { response: { status: response.status, data } };
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Transaction creation error:', error);
+    throw error;
   }
-  return data;
 };
 
 export const deleteTransaction = async (userId: string, transactionId: string) => {
@@ -145,19 +161,35 @@ export const getGoals = async (userId: string) => {
 };
 
 export const createGoal = async (userId: string, goal: any) => {
-  const response = await fetch(API_URLS.goals, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId,
-    },
-    body: JSON.stringify(goal),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    throw { response: { status: response.status, data } };
+  try {
+    const response = await fetch(API_URLS.goals, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+      },
+      body: JSON.stringify(goal),
+    });
+    
+    const text = await response.text();
+    let data;
+    
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('Failed to parse response:', text);
+      throw { response: { status: response.status, data: { error: 'Invalid JSON response' } } };
+    }
+    
+    if (!response.ok) {
+      throw { response: { status: response.status, data } };
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Goal creation error:', error);
+    throw error;
   }
-  return data;
 };
 
 export const updateGoalProgress = async (userId: string, goalId: string, amount: number) => {
