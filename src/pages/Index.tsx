@@ -156,7 +156,10 @@ const Index = () => {
     };
 
     try {
+      console.log('Создание транзакции:', transactionData);
       const result = await createTransaction(userId, transactionData);
+      console.log('Результат создания транзакции:', result);
+      
       if (result.success) {
         setTransactions([result.transaction, ...transactions]);
         setIsAddTransactionOpen(false);
@@ -166,6 +169,7 @@ const Index = () => {
           description: 'Транзакция добавлена'
         });
       } else if (result.premiumRequired || result.error) {
+        console.error('Ошибка от сервера:', result);
         toast({
           title: result.premiumRequired ? 'Требуется Premium' : 'Ошибка',
           description: result.premiumRequired 
@@ -175,6 +179,7 @@ const Index = () => {
         });
       }
     } catch (error: any) {
+      console.error('Исключение при создании транзакции:', error);
       const errorData = error?.response?.data;
       if (errorData?.premiumRequired) {
         toast({
@@ -185,7 +190,7 @@ const Index = () => {
       } else {
         toast({
           title: 'Ошибка',
-          description: errorData?.error || 'Не удалось добавить транзакцию',
+          description: errorData?.error || error?.message || 'Не удалось добавить транзакцию',
           variant: 'destructive'
         });
       }
