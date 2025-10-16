@@ -1,0 +1,45 @@
+{
+  "tests": [
+    {
+      "name": "Get organizations for user",
+      "method": "GET",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "organizations": "array"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Create organization - premium required",
+      "method": "POST",
+      "headers": {
+        "X-User-Id": "1",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "Тестовое ИП",
+        "type": "ИП",
+        "tax_system": "УСН"
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "success": true,
+        "id": "number"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Missing user ID returns 401",
+      "method": "GET",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
